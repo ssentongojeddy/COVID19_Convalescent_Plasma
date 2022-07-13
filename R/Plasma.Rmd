@@ -1,0 +1,369 @@
+---
+title: "Demographics of Convalescent Plasma Donors in Central Pennsylvania During the COVID-19 Pandemic"
+author: 'Paddy Ssentongo, MD, PhD'
+date: "07/13/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE,warning=FALSE,echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+```{r}
+
+if (!require("pacman")) install.packages("pacman")
+pkgs = c("surveillance", "dplyr", "sp", "sf", "ggplot2","tidyr", "jtools","tmap", "ggsci","wesanderson","RColorBrewer")
+pacman::p_load(pkgs, character.only = T)
+
+
+```
+# Map
+
+```{r}
+PA_map <- st_read("PA/PAShapefile.shp")
+PA_map$Donate_n=PA_map$Donate/PA_map$POP_2017*100000
+
+```
+
+```{r}
+tm_shape(PA_map) +
+  tm_polygons(col = c("Donate_n"),
+              title = "Participants\n per 100 000", 
+              palette = "-RdYlBu", border.col = "black",
+              style = "cont", breaks = c(10, 20, 30, 40),
+               #style = "cont", breaks = c(40, 80, 120, 160),
+               #style = c("cont", "pretty"),
+              lwd = .5, textNA = "No data", colorNA = "grey90") +
+  tm_compass(position = c("right", "top"), size = 1) +
+    tm_scale_bar(position = c(0.8, "BOTTOM"), width = 0.1, text.size = .6) +
+  tm_layout(asp = 0, outer.margins = 0, legend.title.size = 1,
+            legend.text.size = 0.65, legend.outside.size = 0.15,
+            legend.outside = T, design.mode = F,
+            panel.labels = c("Distribution of study population by county"))
+
+tmap_save(filename = "figs/Fig.png", width = 7, height = 4)
+#tmap_save(filename = "figs/panels.pdf", width = 8, height = 3 * 3)
+```
+
+
+
+
+# Univariate models
+### Age
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+#dat=read.csv("PLASMANina_DATA_Raw.csv")
+dat=read.csv("plasmamerged.csv")
+m1<- glm(Donate~Age, data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+### County
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+dat=read.csv("plasmamerged.csv")
+
+m1<- glm(Donate~relevel(County, ref="Dauphin"), data = dat, family=binomial(link = logit))
+
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+
+
+### Sex
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~Male, data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+```
+
+
+
+
+### Race: 1=white
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~relevel(factor(Caucasian), ref="1"), data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+
+
+### Insurance: 0=unisured, 1=private, 2=public
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~relevel(factor(Private_Insurance_11), ref="2"), data = dat, family=binomial(link = logit))
+
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+
+
+### Comorbidity
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~Comorbidity, data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+### Symptoms
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~symptoms, data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+### Type of Comorbidities
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+m1<- glm(Donate~COPD+dat$T2DM+dat$Stroke+dat$HTN+dat$CVD+dat$Obesity+dat$CKD, data = dat, family=binomial(link = logit)) 
+
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+
+### Multivariable Logistic Regression Model
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,fig.width=12, fig.height=8, eval=T}
+
+dat$Black=factor(dat$Black)
+m1<- glm(Donate~Age+Male+Comorbidity+relevel(factor(Caucasian), ref="1") + relevel(factor(Private_Insurance_11), ref="2")+ Obesity, data = dat, family=binomial(link = logit)) 
+summary(m1)
+aa=exp(cbind(OR = coef(m1), confint(m1)))
+aa
+
+```
+
+
+
+# Descriptive stats
+# All
+```{r}
+table (dat$Donate, dat$Male)
+```
+
+```{r}
+# sex
+tab <- with(dat, table(Male, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+
+
+# comorbidity all
+tab <- with(dat, table(Comorbidity, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+
+# Caucasian/ Race
+tab <- with(dat, table(Caucasian, Donate))
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+
+```
+```{r}
+
+# insurance: 0=unisured, 1=private, 2=public
+tab <- with(dat, table(Private_Insurance_11, Donate))
+
+
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+
+i=table(dat$Private_Insurance_11)
+i
+
+```
+
+```{r}
+
+# obesity
+tab <- with(dat, table(Obesity, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+
+```
+```{r}
+# Sex
+tab <- with(dat, table(Male, Donate))
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+```
+
+```{r}
+t=table(dat$Male)
+t
+
+```
+
+
+
+```{r}
+# Age Cat
+tab <- with(dat, table(Age_cat, Donate))
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+```
+
+```{r}
+t=table(dat$Age_cat)
+t
+
+```
+
+
+
+```{r}
+
+# Race
+table(dat$Race2)
+tab <- with(dat, table(dat$Race2, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+
+```{r}
+
+# CVD
+tab <- with(dat, table(CVD, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+# COPD
+tab <- with(dat, table(COPD, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+
+# T2DM
+tab <- with(dat, table(T2DM, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+# Stroke
+tab <- with(dat, table(Stroke, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+
+# HTN
+tab <- with(dat, table(HTN, Donate))
+tab
+prop.table(tab, margin = 2)*100
+chisq.test(tab)
+```
+
+```{r}
+
+# CKD
+tab <- with(dat, table(CKD, Donate))
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+```
+
+```{r}
+
+# Obesity
+tab <- with(dat, table(Obesity, Donate))
+tab
+prop.table(tab, margin = 1)*100
+chisq.test(tab)
+
+```
+
+```{r}
+
+df=group_by(dat, Donate) %>%
+  summarise(
+    count = n(),
+    Mean = mean(Age, na.rm = TRUE),
+    SD= sd(Age, na.rm = TRUE),
+    IQR = IQR(Age, na.rm = TRUE))
+
+df
+```
+
+```{r}
+
+mean (dat$Age,na.rm = TRUE)
+sd (dat$Age,na.rm = TRUE)
+
+```
+
+
+
+
+
